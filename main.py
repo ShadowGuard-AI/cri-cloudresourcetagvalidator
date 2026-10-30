@@ -72,18 +72,22 @@ def validate_tags(resource_tags, mandatory_tags, naming_conventions):
     }
 
 
-def get_all_ec2_instances(session):
+def get_all_ec2_instances(session, region=None):
     """
-    Retrieves all EC2 instances in all regions.
+    Retrieves EC2 instances, in one region or in all of them.
 
     Args:
         session (boto3.Session): The boto3 session object.
+        region (str, optional): Limit the scan to this region.
 
     Returns:
         list: A list of EC2 instances.
     """
     ec2 = session.client('ec2')
-    regions = [region['RegionName'] for region in ec2.describe_regions()['Regions']]
+    if region:
+        regions = [region]
+    else:
+        regions = [r['RegionName'] for r in ec2.describe_regions()['Regions']]
     all_instances = []
     for region in regions:
         ec2 = session.client('ec2', region_name=region)
@@ -117,7 +121,7 @@ def get_resource_tags(resource, resource_type):
         return []
 
 
-def process_ec2_instances(session, mandatory_tags, naming_conventions):
+def process_ec2_instances(session, mandatory_tags, naming_conventions, region=None):
     """
     Processes EC2 instances, validates their tags, and reports violations.
 
@@ -127,7 +131,11 @@ def process_ec2_instances(session, mandatory_tags, naming_conventions):
         naming_conventions (dict): A dictionary of tag keys and their corresponding regular expressions.
     """
 
-    all_instances = get_all_ec2_instances(session)
+    # The --region option used to stop at the session: enumeration
+    # ignored it and walked every region anyway, so asking for one
+    # region quietly scanned (and billed API calls against) all of
+    # them. It is threaded through now.
+    all_instances = get_all_ec2_instances(session, region=region)
     violations = []
 
     for instance in all_instances:
@@ -187,7 +195,7 @@ def main(profile, region, mandatory_tags, naming_conventions, output, resource_t
         resource_types_list = [rt.strip() for rt in resource_types.split(',')]
 
         if 'ec2' in resource_types_list:
-            violations = process_ec2_instances(session, mandatory_tags, naming_conventions)
+            violations = process_ec2_instances(session, mandatory_tags, naming_conventions, region=region)
             all_violations.extend(violations)
 
 
