@@ -92,9 +92,13 @@ def get_all_ec2_instances(session, region=None):
     for region in regions:
         ec2 = session.client('ec2', region_name=region)
         try:
-            response = ec2.describe_instances()
-            for reservation in response['Reservations']:
-                all_instances.extend(reservation['Instances'])
+            # The paginator matters in larger accounts: a bare
+            # describe_instances returns only the first page, and the
+            # instances behind it were never tag-checked at all.
+            paginator = ec2.get_paginator('describe_instances')
+            for page in paginator.paginate():
+                for reservation in page['Reservations']:
+                    all_instances.extend(reservation['Instances'])
         except Exception as e:
             logging.error(f"Error describing instances in {region}: {e}")
     return all_instances
