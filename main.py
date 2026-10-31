@@ -72,17 +72,23 @@ def validate_tags(resource_tags, mandatory_tags, naming_conventions):
     }
 
 
-def get_all_ec2_instances(session, region=None):
+def get_all_ec2_instances(session, region=None, stats=None):
     """
     Retrieves EC2 instances, in one region or in all of them.
 
     Args:
         session (boto3.Session): The boto3 session object.
         region (str, optional): Limit the scan to this region.
+        stats (dict, optional): Filled with regions_attempted and
+            regions_failed counts for this call.
 
     Returns:
         list: A list of EC2 instances.
     """
+    if stats is None:
+        stats = {}
+    stats["regions_attempted"] = 0
+    stats["regions_failed"] = 0
     ec2 = session.client('ec2')
     if region:
         regions = [region]
@@ -90,6 +96,7 @@ def get_all_ec2_instances(session, region=None):
         regions = [r['RegionName'] for r in ec2.describe_regions()['Regions']]
     all_instances = []
     for region in regions:
+        stats["regions_attempted"] += 1
         ec2 = session.client('ec2', region_name=region)
         try:
             # The paginator matters in larger accounts: a bare
@@ -100,6 +107,7 @@ def get_all_ec2_instances(session, region=None):
                 for reservation in page['Reservations']:
                     all_instances.extend(reservation['Instances'])
         except Exception as e:
+            stats["regions_failed"] += 1
             logging.error(f"Error describing instances in {region}: {e}")
     return all_instances
 
@@ -125,7 +133,7 @@ def get_resource_tags(resource, resource_type):
         return []
 
 
-def process_ec2_instances(session, mandatory_tags, naming_conventions, region=None):
+def process_ec2_instances(session, mandatory_tags, naming_conventions, region=None, stats=None):
     """
     Processes EC2 instances, validates their tags, and reports violations.
 
@@ -133,13 +141,18 @@ def process_ec2_instances(session, mandatory_tags, naming_conventions, region=No
         session (boto3.Session): The boto3 session object.
         mandatory_tags (list): A list of mandatory tag keys.
         naming_conventions (dict): A dictionary of tag keys and their corresponding regular expressions.
+        stats (dict, optional): Filled with regions_attempted,
+            regions_failed, and instances_checked counts.
     """
 
     # The --region option used to stop at the session: enumeration
     # ignored it and walked every region anyway, so asking for one
     # region quietly scanned (and billed API calls against) all of
     # them. It is threaded through now.
-    all_instances = get_all_ec2_instances(session, region=region)
+    if stats is None:
+        stats = {}
+    all_instances = get_all_ec2_instances(session, region=region, stats=stats)
+    stats["instances_checked"] = len(all_instances)
     violations = []
 
     for instance in all_instances:
@@ -169,6 +182,18 @@ def main(profile, region, mandatory_tags, naming_conventions, output, resource_t
     Validates cloud resource tags against predefined policies.
     """
     try:
+        # Only ec2 is implemented. Any other value used to run no
+        # check at all and still end on the no violations line, so
+        # reject it before any AWS call is made.
+        resource_types_list = [rt.strip() for rt in resource_types.split(',')]
+        unsupported = [rt for rt in resource_types_list if rt != 'ec2']
+        if unsupported or not resource_types_list:
+            logging.error(
+                f"Unsupported resource type(s): {', '.join(unsupported) or resource_types}. "
+                "Only ec2 is supported."
+            )
+            sys.exit(1)
+
         # Create boto3 session
         session = boto3.Session(profile_name=profile, region_name=region)
 
@@ -196,17 +221,36 @@ def main(profile, region, mandatory_tags, naming_conventions, output, resource_t
 
         # Process resources based on provided resource types
         all_violations = []
-        resource_types_list = [rt.strip() for rt in resource_types.split(',')]
+        stats = {"regions_attempted": 0, "regions_failed": 0, "instances_checked": 0}
 
         if 'ec2' in resource_types_list:
-            violations = process_ec2_instances(session, mandatory_tags, naming_conventions, region=region)
+            violations = process_ec2_instances(session, mandatory_tags, naming_conventions, region=region, stats=stats)
             all_violations.extend(violations)
 
+        counts_line = (
+            f"Regions attempted: {stats['regions_attempted']}, "
+            f"regions failed: {stats['regions_failed']}, "
+            f"instances checked: {stats['instances_checked']}"
+        )
+        logging.info(counts_line)
+
+        # A run that checked nothing is a failed check, not a clean
+        # result: never print the no violations line for it.
+        if stats['regions_attempted'] and stats['regions_failed'] >= stats['regions_attempted']:
+            print(counts_line)
+            print("Tag check failed: every region call failed, so no instances were checked.")
+            sys.exit(1)
+        if stats['instances_checked'] == 0:
+            print(counts_line)
+            print("Tag check failed: no instances were checked.")
+            sys.exit(1)
 
         # Output results
         if output == 'json':
+            print(counts_line)
             print(json.dumps(all_violations, indent=4))
         else:  # Default to text output
+            print(counts_line)
             if not all_violations:
                 print("No tag violations found.")
             else:
