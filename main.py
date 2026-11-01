@@ -56,6 +56,10 @@ def validate_tags(resource_tags, mandatory_tags, naming_conventions):
     # Check for missing mandatory tags
     tag_keys = [tag['Key'] for tag in resource_tags]
     for mandatory_tag in mandatory_tags:
+        # I compare tag keys exactly, case included. AWS tag keys are
+        # case sensitive too, so an owner tag spelled Owner in the
+        # policy and owner on the instance is a real miss, not a typo
+        # I should paper over.
         if mandatory_tag not in tag_keys:
             missing_tags.append(mandatory_tag)
 
@@ -107,6 +111,9 @@ def get_all_ec2_instances(session, region=None, stats=None):
                 for reservation in page['Reservations']:
                     all_instances.extend(reservation['Instances'])
         except Exception as e:
+            # I count a failed region and move on rather than retrying.
+            # One bad region should not stop the rest of the account from
+            # being checked, and the counts line at the end says it happened.
             stats["regions_failed"] += 1
             logging.error(f"Error describing instances in {region}: {e}")
     return all_instances
@@ -198,6 +205,9 @@ def main(profile, region, mandatory_tags, naming_conventions, output, resource_t
         session = boto3.Session(profile_name=profile, region_name=region)
 
         # Load tag policies
+        # I copy the outer dict only. Until the naming conventions are
+        # replaced wholesale below, that inner dict is the module level
+        # one, so nothing here may edit it in place.
         tag_policies = DEFAULT_TAG_POLICIES.copy()  # Start with defaults
 
         # Override mandatory tags if provided via CLI
