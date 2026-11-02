@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-label="Drop zone in three layers: cloud and the curved eye wall moving slowly past, the ramp and launch tube where a dropsonde is released and descends rotating under its canopy, and the still rack of spare instruments in the foreground">
+<rect width="1200" height="360" fill="#2E5A88"/>
+<g fill="#E7EDF4"><g><ellipse cx="300" cy="90" rx="150" ry="34"/><ellipse cx="700" cy="70" rx="170" ry="38"/><ellipse cx="1080" cy="96" rx="150" ry="34"/><animateTransform attributeName="transform" type="translate" values="0 0;-90 0;0 0" dur="28s" repeatCount="indefinite"/></g>
+<path d="M980 360 Q900 180 1010 20 L1200 20 L1200 360 Z" fill="#DCE6EF"/></g>
+<rect x="0" y="120" width="230" height="150" fill="#5A6068"/><rect x="222" y="120" width="10" height="150" fill="#C0392B"/>
+<g><g fill="#5A6068" stroke="#F5F5F5"><rect x="330" y="60" width="22" height="80"/></g><rect x="330" y="70" width="22" height="14" fill="#C0392B"/><path d="M306 44 Q341 18 376 44 L341 58 Z" fill="#E88B3A"/><path d="M312 46 L336 62 M370 46 L346 62" stroke="#F5F5F5" stroke-width="1.5"/>
+<animateTransform attributeName="transform" type="translate" values="0 0;60 260" dur="12s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 341 90;24 341 90;0 341 90" dur="12s" repeatCount="indefinite" additive="sum"/></g>
+<g fill="#5A6068" stroke="#F5F5F5"><rect x="60" y="300" width="16" height="52"/><rect x="110" y="300" width="16" height="52"/><rect x="160" y="300" width="16" height="52"/></g>
+<rect x="40" y="292" width="220" height="68" fill="none" stroke="#F5F5F5" stroke-width="2"/>
+</svg>
